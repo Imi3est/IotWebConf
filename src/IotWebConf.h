@@ -66,7 +66,8 @@ enum NetworkState
   ApMode,
   Connecting,
   OnLine,
-  OffLine
+  OffLine,
+  WaitingBeforeConnect
 };
 
 class IotWebConf;
@@ -469,6 +470,27 @@ public:
   void skipApStartup() { this->_skipApStartup = true; }
 
   /**
+   * By default IotWebConf will switch to AP mode after failed wifi connection attempt.
+   * You can disable this behaviour if you call this method with dontSwitch=true parameter.
+   * In this case the device will wait after failed connection and doesn't turn on AP.
+   * You can set the duration of waiting with setWifiWaitBeforeConnectionSecs() method.
+   */
+  void dontSwitchToApOnFailedConnection(bool dontSwitch) { this->_dontSwitchToApOnFailedConnection = dontSwitch; }
+
+  /**
+   * You can specify the amount of max seconds to wait before trying to connect to wifi.
+   * You can disable waiting if you set this value to zero.
+   * 
+   * It is used at startup at first connection attempt and between connection attempts if you turn on dontSwitchToApOnFailedConnection.
+   * It's default value is 0. It is useful to set it to a higher number if you turn on dontSwitchToApOnFailedConnection.
+   */
+  void setRandomWaitBeforeConnection(int maxSeconds)
+  {
+    this->_randomWaitBeforeConnectionMaxSecs = maxSeconds;
+  }
+
+
+  /**
    * By default IotWebConf will continue startup in WiFi mode, when no configuration request arrived
    * in AP mode. With this method holding the AP mode can be forced.
    * Further more, instant AP mode can forced even when we are currently in WiFi mode.
@@ -576,6 +598,9 @@ private:
   bool _startupOffLine = false;
   bool _skipApStartup = false;
   bool _forceApMode = false;
+  bool _dontSwitchToApOnFailedConnection = false;
+  bool _randomizeWaitTimeBeforeConnection = false;
+  unsigned long _randomWaitBeforeConnectionMaxSecs = 0;
   ParameterGroup _allParameters = ParameterGroup("iwcAll");
   ParameterGroup _systemParameters = ParameterGroup("iwcSys", "System configuration");
   ParameterGroup _customParameterGroups = ParameterGroup("iwcCustom");
@@ -615,6 +640,8 @@ private:
   bool _blinkStateOn = false;
   unsigned long _lastBlinkTime = 0;
   unsigned long _wifiConnectionStart = 0;
+  unsigned long _wifiWaitBeforeConnectStart = 0;
+  unsigned long _wifiWaitBeforeConnectMS = 0;//wifiWaitBeforeConnectionSecs * 1000 with optional randomization
   // TODO: authinfo
   WifiAuthInfo _wifiAuthInfo;
   HtmlFormatProvider htmlFormatProviderInstance;

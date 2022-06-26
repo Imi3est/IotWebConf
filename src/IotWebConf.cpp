@@ -565,6 +565,17 @@ void IotWebConf::doLoop()
       return;
     }
   }
+  else if (this->_state == WaitingBeforeConnect)
+  {
+    if ((millis() - this->_wifiWaitBeforeConnectStart) > (this->_wifiWaitBeforeConnectMS))
+    {
+      IOTWEBCONF_DEBUG_LINE(F("Waiting finished, trying to connect..."));
+
+      this->changeState(Connecting);
+
+      return;
+	}
+  }
   else if (this->_state == OnLine)
   {
     // Required for mDNS to work on ESP8266
@@ -579,7 +590,7 @@ void IotWebConf::doLoop()
     if (WiFi.status() != WL_CONNECTED)
     {
       IOTWEBCONF_DEBUG_LINE(F("Not connected. Try reconnect..."));
-      this->changeState(Connecting);
+      this->changeState(Connecting);//itt lehetne várakozni _wifiWaitBeforeConnectionSecs
       return;
     }
   }
@@ -659,6 +670,28 @@ void IotWebConf::stateChanged(NetworkState oldState, NetworkState newState)
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
       this->blinkInternal(22000, 6);
+      break;
+	case WaitingBeforeConnect:
+		//ha a _wifiWaitBeforeConnectionSecs 0, akkor logoljuk h várakozás skippelve
+		//bár itt disconnectál is, azzal mi legyen?
+		//randomSeed átgondolni
+		if (_randomizeWaitTimeBeforeConnection)
+		{
+			this->_wifiWaitBeforeConnectMS = 1000 * random(_wifiWaitBeforeConnectionSecs);
+		}
+		else
+		{
+			this->_wifiWaitBeforeConnectMS = 1000 * _wifiWaitBeforeConnectionSecs;
+		}
+#ifdef IOTWEBCONF_DEBUG_TO_SERIAL
+	  Serial.print("Waiting before connecting (secs):");
+	  Serial.println(this->_wifiWaitBeforeConnectMS / 1000);
+#endif
+      this->_wifiWaitBeforeConnectStart = millis();
+
+      WiFi.disconnect(true);
+      WiFi.mode(WIFI_OFF);
+	  this->blinkInternal(2000, 50);
       break;
     case ApMode:
     case NotConfigured:
@@ -854,7 +887,14 @@ bool IotWebConf::checkWifiConnection()
       }
       else
       {
-        this->changeState(ApMode);
+		  if (this->_dontSwitchToApOnFailedConnection)
+		  {
+			  this->changeState(WaitingBeforeConnect);
+		  }
+		  else
+		  {
+			  this->changeState(ApMode);
+		  }
       }
     }
     return false;
